@@ -19,7 +19,7 @@ function EmailLoginForm({ onDone }: { onDone: () => void }) {
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
     try {
-      await signIn(values);
+      await signIn(values.email, values.password);
       onDone();
     } catch (error) {
       setFormError(toMessage(error));
@@ -66,7 +66,7 @@ function PhoneLoginForm({ onDone }: { onDone: () => void }) {
   const onSubmit = handleSubmit(async (values) => {
     setFormError(null);
     try {
-      await signInWithPhone(values);
+      await signInWithPhone(values.phone, values.password);
       onDone();
     } catch (error) {
       setFormError(toMessage(error));
@@ -104,11 +104,11 @@ function PhoneLoginForm({ onDone }: { onDone: () => void }) {
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<'email' | 'phone'>('email');
+  const [mode, setMode] = useState<'email' | 'phone'>('phone');
   const [googleLoading, setGoogleLoading] = useState(false);
   const [googleError, setGoogleError] = useState<string | null>(null);
 
-  const onDone = () => navigate('/dashboard', { replace: true });
+  const onDone = () => navigate('/today', { replace: true });
 
   const onGoogleClick = async () => {
     setGoogleError(null);
@@ -126,17 +126,17 @@ export function LoginPage() {
   return (
     <div>
       <h1 className="text-2xl font-bold tracking-tight text-ink">Sign in</h1>
-      <p className="mt-1 text-sm text-muted">Pick up where your orders left off.</p>
+      <p className="mt-1 text-sm text-muted">Welcome back.</p>
 
       <div className="mt-6 inline-flex gap-1 rounded-xl border border-line bg-raised p-1">
-        {(['email', 'phone'] as const).map((option) => (
+        {(['phone', 'email'] as const).map((option) => (
           <button
             key={option}
             type="button"
             onClick={() => setMode(option)}
             className={cn(
-              'rounded-lg px-4 py-1.5 text-sm font-medium capitalize transition-colors',
-              option === mode ? 'bg-brand text-white' : 'text-muted hover:text-ink',
+              'rounded-full px-4 py-1.5 text-sm font-medium capitalize transition-colors',
+              option === mode ? 'bg-surface text-ink shadow-card' : 'text-muted hover:text-ink',
             )}
           >
             {option}
@@ -170,8 +170,8 @@ export function LoginPage() {
 
       <p className="mt-6 text-sm text-muted">
         New here?{' '}
-        <Link to="/signup" className="font-semibold text-brand">
-          Create a business account
+        <Link to="/signup" className="font-semibold text-brand-ink underline">
+          Create your Kasa account
         </Link>
       </p>
     </div>

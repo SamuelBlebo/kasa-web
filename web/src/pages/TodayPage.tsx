@@ -1,13 +1,17 @@
+import { useMemo } from 'react';
 import { Link, Navigate } from 'react-router-dom';
+import { orderBy, query, Timestamp, where } from 'firebase/firestore';
 import { PageHeader } from '@/components/layout/PageHeader';
 import { Icon, type IconName } from '@/components/ui';
 import { isOpen } from '@/config/business';
 import { useLive } from '@/context/LiveContext';
+import { ordersRef } from '@/firebase';
+import { useCollection } from '@/hooks/useCollection';
 import { useAuth } from '@/hooks/useAuth';
 import { useOrg, usePermission } from '@/hooks/usePermission';
 import { usePageTitle } from '@/hooks/usePageTitle';
 import { cn } from '@/utils/cn';
-import { cedis, formatDate } from '@/utils/format';
+import { cedis, formatDate, startOfToday } from '@/utils/format';
 
 interface Need {
   icon: IconName;
@@ -24,6 +28,17 @@ export function TodayPage() {
   const { profile } = useAuth();
   const live = useLive();
   const canPay = usePermission('payments.verify');
+  const bookings = useCollection(
+    useMemo(() => {
+      const start = startOfToday();
+      return query(
+        ordersRef(org.id),
+        where('appointmentAt', '>=', Timestamp.fromDate(start)),
+        where('appointmentAt', '<', Timestamp.fromMillis(start.getTime() + 86400000)),
+        orderBy('appointmentAt'),
+      );
+    }, [org.id]),
+  );
   if (role === 'kitchen') return <Navigate to="/kitchen" replace />;
 
   const hour = new Date().getHours();
@@ -31,10 +46,7 @@ export function TodayPage() {
   const today = live.todayOrders.filter((o) => o.status !== 'cancelled');
   const open = today.filter((o) => isOpen(o.status));
   const paid = today.filter((o) => o.paymentState === 'paid');
-  const upcoming = live.todayOrders
-    .filter((o) => o.appointmentAt && isOpen(o.status))
-    .sort((a, b) => a.appointmentAt!.toMillis() - b.appointmentAt!.toMillis())
-    .slice(0, 5);
+  const upcoming = (bookings.status === 'ready' ? bookings.data : []).filter((o) => isOpen(o.status)).slice(0, 8);
 
   const setup = [
     { done: org.whatsapp.connected, label: 'Connect your WhatsApp number', to: '/settings/whatsapp' },
@@ -118,7 +130,7 @@ export function TodayPage() {
 
       {upcoming.length > 0 && (
         <section className="mt-5 overflow-hidden rounded-2xl border border-line bg-surface">
-          <h2 className="border-b border-line px-5 py-3.5 font-semibold">Coming up</h2>
+          <h2 className="border-b border-line px-5 py-3.5 font-semibold">Bookings today</h2>
           {upcoming.map((o) => (
             <Link key={o.id} to={`/orders?order=${o.id}`} className="flex justify-between gap-3 border-t border-line px-5 py-3 first:border-t-0 hover:bg-raised">
               <span>

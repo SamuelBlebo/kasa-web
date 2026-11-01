@@ -4,7 +4,9 @@
  * merchant happens to type it.
  */
 export function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, '');
+  const digits = phone.replace(/\D/g, '');
+  // Ghana local form 0XXXXXXXXX → 233XXXXXXXXX, so "024…" and "+233 24…" are one account.
+  return digits.startsWith('0') && digits.length === 10 ? `233${digits.slice(1)}` : digits;
 }
 
 const AUTH_EMAIL_DOMAIN = 'phone.kasa.internal';

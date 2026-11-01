@@ -8,4 +8,13 @@ export default defineConfig({
     alias: { '@': path.resolve(__dirname, './src') },
   },
   server: { port: 5173 },
+  build: {
+    rollupOptions: {
+      output: {
+        // Firebase is most of the bundle and changes rarely; cache it separately.
+        manualChunks: (id) => (id.includes('node_modules/firebase') || id.includes('node_modules/@firebase') ? 'firebase' : id.includes('node_modules') ? 'vendor' : undefined),
+      },
+    },
+    chunkSizeWarningLimit: 700,
+  },
 });

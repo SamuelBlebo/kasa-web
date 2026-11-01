@@ -219,7 +219,7 @@ function OrderDetail({ order }: { order: WithId<Order> }) {
                 onClick={async () => {
                   const amountMinor = toMinor(pay.amount);
                   if (!amountMinor) return toast.error('Enter the amount.');
-                  const ok = await run('pay', () => recordPayment({ orderId: order.id, method: pay.method, network: pay.method === 'momo' ? 'mtn' : null, reference: pay.reference || null, amountMinor }), 'Payment recorded.');
+                  const ok = await run('pay', () => recordPayment({ orderId: order.id, method: pay.method, network: null, reference: pay.reference || null, amountMinor }), 'Payment recorded.');
                   if (ok) setPay({ ...pay, open: false });
                 }}
               >

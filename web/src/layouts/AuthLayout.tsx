@@ -5,18 +5,18 @@ export function AuthLayout() {
   return (
     <div className="grid min-h-screen bg-canvas lg:grid-cols-[1fr_minmax(420px,480px)]">
       {/* Left panel carries the pitch; it collapses away on small screens. */}
-      <section className="hidden flex-col justify-between bg-brand p-10 text-white lg:flex">
-        <Logo />
+      <section className="hidden flex-col justify-between bg-brand p-10 text-brand-on lg:flex">
+        <Logo light />
         <div className="max-w-md">
           <p className="text-3xl font-bold leading-tight tracking-tight">
-            Your customers already message you. Let them order there too.
+            Your customers already message you. Let them order and book there too.
           </p>
-          <p className="mt-4 text-white/80">
-            Upload your products once. OrderFlow answers the chat, takes the order and keeps your
-            stock in step — no website, no app, no sign-up for the customer.
+          <p className="mt-4 text-brand-dim">
+            Add your products or services once. Kasa answers the chat, takes the order or booking,
+            collects the MoMo reference and keeps your stock right. No app or account for the customer.
           </p>
         </div>
-        <p className="text-sm text-white/70">Built for shops across Ghana and West Africa.</p>
+        <p className="text-sm text-brand-dim">Built for shops, food sellers and service providers in Ghana.</p>
       </section>
 
       <section className="flex flex-col p-6 sm:p-10">

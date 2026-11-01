@@ -12,12 +12,12 @@ const FAQS: FaqItem[] = [
   {
     question: 'Do my customers need to install anything?',
     answer:
-      "No. They message your existing WhatsApp Business number the way they always have. OrderFlow answers on your behalf, shows the menu and takes the order — there's no app to download and nothing for them to sign up for.",
+      "No. They message your existing WhatsApp Business number the way they always have. Kasa answers on your behalf, shows your products or services, and takes the order or booking. There's no app to download and nothing for them to sign up for.",
   },
   {
     question: 'Do I need a Meta WhatsApp Business API account?',
     answer:
-      'Yes — OrderFlow connects to your WhatsApp number through the official Meta WhatsApp Cloud API, so your account stays in good standing with Meta. Once your account is set up, connecting it to OrderFlow takes a few minutes from Settings.',
+      'Yes — Kasa connects to your WhatsApp number through the official Meta WhatsApp Cloud API, so your account stays in good standing with Meta. Once your account is set up, connecting it to Kasa takes a few minutes from Settings.',
   },
   {
     question: "What happens if I go over my plan's order limit?",
@@ -32,17 +32,17 @@ const FAQS: FaqItem[] = [
   {
     question: 'Is my business data shared with other merchants?',
     answer:
-      'No. Every business on OrderFlow is fully isolated — your products, orders and customers are only ever visible to your own team.',
+      'No. Every business on Kasa is fully isolated — your products, orders and customers are only ever visible to your own team.',
   },
   {
-    question: 'What currency am I billed in?',
+    question: 'How do my customers pay me?',
     answer:
-      "We detect your market automatically when you sign up and price your plan accordingly (see Pricing) — no flat USD rate converted on the fly. That same currency is also what you sell to your own customers in. If we ever get your market wrong, contact support and we'll fix it.",
+      "By mobile money to your own MTN MoMo, Telecel Cash or AirtelTigo Money number, or cash. The customer replies with their Transaction ID; you match it with your MoMo SMS and tap Verify. Kasa flags wrong amounts and reused IDs. Kasa never holds your money.",
   },
   {
-    question: 'Which countries is OrderFlow available in?',
+    question: 'Where is Kasa available?',
     answer:
-      "OrderFlow is built for shops across Ghana and West Africa, and works anywhere Meta's WhatsApp Cloud API is available.",
+      "Ghana, for now. Prices are in cedis and payments use Ghanaian mobile money.",
   },
 ];
 

@@ -35,7 +35,7 @@ export function DraftCard({ draft }: { draft: WithId<DraftOrder> }) {
   if (draft.status !== 'open') {
     return (
       <div className="mx-auto my-2 w-full max-w-[560px] rounded-xl border border-line bg-surface px-4 py-2.5 text-sm text-muted">
-        {draft.status === 'accepted' ? `Kasa's reading became order #${draft.orderNumber}.` : 'Marked as not an order.'}
+        {draft.status === 'accepted' ? `Confirmed as ${draft.lines.every((l) => l.kind === 'service') ? 'booking' : 'order'} #${draft.orderNumber}.` : 'Marked as not an order.'}
       </div>
     );
   }

@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui';
 import { useAuth } from '@/hooks/useAuth';
-import { signOutMerchant } from '@/services';
+import { signOutUser } from '@/services';
 import { initials } from '@/utils/format';
 
 export function AdminTopbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
@@ -37,7 +37,7 @@ export function AdminTopbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
               </div>
               <button
                 role="menuitem"
-                onClick={() => signOutMerchant()}
+                onClick={() => signOutUser()}
                 className="w-full rounded-lg px-2.5 py-2 text-left text-sm font-medium text-danger hover:bg-raised"
               >
                 Sign out

@@ -37,7 +37,7 @@ const SECTIONS: HelpSection[] = [
         title: 'What you need before connecting',
         body: [
           'A WhatsApp Business Account and phone number registered on the Meta WhatsApp Cloud API. If you don\'t have one yet, Meta sets this up through Meta Business Suite.',
-          "OrderFlow never touches your Meta account directly — you provide your phone number ID and access token once, from the WhatsApp page (or connect with one click if your workspace has Facebook sign-in enabled there), and OrderFlow's servers use them to send and receive messages on your behalf.",
+          "In Kasa, open Settings → WhatsApp and tap Continue with Facebook. Pick your business and number in Meta's window. Kasa never sees your Facebook password; Meta gives Kasa's server a key it keeps private.",
         ],
       },
       {
@@ -109,7 +109,7 @@ export function HelpCenterPage() {
   return (
     <div className="mx-auto max-w-3xl px-6 py-16">
       <h1 className="text-3xl font-bold tracking-tight text-ink">Help Center</h1>
-      <p className="mt-3 text-muted">Short guides for getting your shop running on OrderFlow.</p>
+      <p className="mt-3 text-muted">Short guides for getting your shop running on Kasa.</p>
 
       <div className="mt-10 space-y-12">
         {SECTIONS.map((section) => (
@@ -137,8 +137,8 @@ export function HelpCenterPage() {
         <h2 className="text-base font-semibold text-ink">Still stuck?</h2>
         <p className="mt-1.5 text-sm text-muted">
           Email{' '}
-          <a href="mailto:support@orderflow.app" className="font-semibold text-brand">
-            support@orderflow.app
+          <a href="mailto:support@kasa.example" className="font-semibold text-brand">
+            support@kasa.example
           </a>{' '}
           and we'll get back to you.
         </p>

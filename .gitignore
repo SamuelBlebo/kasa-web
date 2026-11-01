@@ -9,3 +9,13 @@ dist/
 .impeccable/mocks/
 .impeccable/build/
 functions/lib/
+.secret.local
+*.secret.local
+.runtimeconfig.json
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+web/test-results/
+functions/.env.local
+functions/.env
+firebase.alt-ports.json

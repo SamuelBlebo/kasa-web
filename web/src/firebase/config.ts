@@ -21,11 +21,14 @@ export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
 export const db = getFirestore(app);
 export const storage = getStorage(app);
-export const functions = getFunctions(app);
+// Must match REGION in functions/src/config.ts.
+export const functions = getFunctions(app, 'europe-west1');
 
 if (env.useEmulators) {
-  connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
-  connectFirestoreEmulator(db, '127.0.0.1', 8080);
-  connectStorageEmulator(storage, '127.0.0.1', 9199);
-  connectFunctionsEmulator(functions, '127.0.0.1', 5001);
+  // Ports match firebase.json; override with VITE_EMULATOR_PORTS="auth,firestore,storage,functions" if yours differ.
+  const [authPort, firestorePort, storagePort, functionsPort] = (import.meta.env.VITE_EMULATOR_PORTS ?? '9099,8080,9199,5001').split(',').map(Number);
+  connectAuthEmulator(auth, `http://127.0.0.1:${authPort}`, { disableWarnings: true });
+  connectFirestoreEmulator(db, '127.0.0.1', firestorePort);
+  connectStorageEmulator(storage, '127.0.0.1', storagePort);
+  connectFunctionsEmulator(functions, '127.0.0.1', functionsPort);
 }

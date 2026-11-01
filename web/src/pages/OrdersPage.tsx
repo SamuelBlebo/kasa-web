@@ -104,18 +104,18 @@ export function OrdersPage() {
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && setParam('order', o.id)}
               className="grid cursor-pointer grid-cols-[1fr_auto] items-center gap-x-3.5 gap-y-1 border-t border-line px-4 py-3 first:border-t-0 hover:bg-[#FBF6EC] lg:grid-cols-[64px_minmax(140px,1.2fr)_minmax(160px,2fr)_110px_120px_150px_150px]"
             >
-              <span className="tabular font-semibold">
+              <span className="tabular col-start-1 row-start-1 font-semibold lg:col-auto lg:row-auto">
                 #{o.number}
                 <small className="block font-normal text-muted">{tab === 'bookings' && o.appointmentAt ? formatDate(o.appointmentAt) : shortWhen(o.createdAt)}</small>
               </span>
-              <span className="lg:order-none">
+              <span className="col-start-1 lg:col-auto">
                 {o.customerName}
                 <small className="block text-[13px] text-muted">{FULFILMENT_LABEL[o.fulfilment]}{o.deliveryAddress ? ` · ${o.deliveryAddress.split(',')[0]}` : ''}</small>
               </span>
               <span className="col-span-2 text-sm text-muted lg:col-span-1 lg:text-base lg:text-ink">{itemsText(o)}</span>
-              <span className="tabular row-start-1 text-right font-semibold lg:row-auto lg:font-normal">{cedis(o.totalMinor)}</span>
-              <span><PayBadge order={o} /></span>
-              <span className="text-right lg:text-left"><StatusBadge order={o} /></span>
+              <span className="tabular col-start-2 row-start-1 text-right font-semibold lg:col-auto lg:row-auto lg:font-normal">{cedis(o.totalMinor)}</span>
+              <span className="col-start-1 lg:col-auto"><PayBadge order={o} /></span>
+              <span className="col-start-2 text-right lg:col-auto lg:text-left"><StatusBadge order={o} /></span>
               <span className={cn('hidden justify-end lg:flex')}><NextStepButton order={o} /></span>
             </div>
           ))}

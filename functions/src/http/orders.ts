@@ -4,7 +4,10 @@ import { z } from 'zod';
 import type { CatalogItem, OrderStatus } from '../domain/model';
 import { can } from '../domain/permissions';
 import { placeOrder, transitionOrder } from '../services/orders';
-import { db, draftOrdersRef, itemsRef, ordersRef, stockMovementsRef, toWaId } from '../tenant';
+import { formatCedis } from '../domain/money';
+import { db, draftOrdersRef, itemsRef, loadCredentialsForOrg, ordersRef, orgRef, stockMovementsRef, toWaId } from '../tenant';
+import { Outbox } from '../whatsapp/client';
+import { linesSummary, paymentInstructions } from '../whatsapp/copy';
 import { parse, requireMember } from './guards';
 
 const STATUSES = ['pending', 'confirmed', 'in_progress', 'ready', 'out_for_delivery', 'completed', 'cancelled'] as const;
@@ -104,6 +107,24 @@ export const acceptDraftOrder = onCall(async (request) => {
     draftId: input.draftId,
   });
   if (!result.ok) throw new HttpsError('failed-precondition', placeErrors(result));
+
+  // Tell the customer what was confirmed and how to pay. Best-effort: the order stands either way.
+  try {
+    const [creds, org] = await Promise.all([loadCredentialsForOrg(orgId), orgRef(orgId).get()]);
+    if (creds) {
+      await new Outbox(creds, orgId, waId, 'bot').text(
+        [
+          `Order #${result.number} confirmed:`,
+          linesSummary(result.lines),
+          `Total: ${formatCedis(result.totalMinor)}`,
+          '',
+          paymentInstructions(result.totalMinor, org.get('momo')),
+        ].join('\n'),
+      );
+    }
+  } catch {
+    // The merchant still sees the order; they can message the customer from the Inbox.
+  }
   return { orderId: result.orderId, number: result.number, totalMinor: result.totalMinor };
 });
 
