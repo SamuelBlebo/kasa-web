@@ -1,13 +1,16 @@
 {
-  "name": "orderflow-functions",
+  "name": "kasa-functions",
   "private": true,
   "main": "lib/index.js",
-  "engines": { "node": "20" },
+  "engines": {
+    "node": "22"
+  },
   "scripts": {
     "build": "tsc",
     "serve": "npm run build && firebase emulators:start --only functions",
     "deploy": "firebase deploy --only functions",
     "typecheck": "tsc --noEmit",
+    "test": "tsc && node --test test/logic.test.mjs",
     "seed:demo": "node scripts/seedDemoMerchant.js"
   },
   "dependencies": {

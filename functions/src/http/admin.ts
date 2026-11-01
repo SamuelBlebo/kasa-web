@@ -4,7 +4,8 @@ import { getStorage } from 'firebase-admin/storage';
 import { logger } from 'firebase-functions/v2';
 import { z } from 'zod';
 import { db, orgRef, whatsappAccountRef } from '../tenant';
-import { PLAN_PRICES_USD, type PlanId } from '../billing';
+import { PLANS } from '../billing/plans';
+import type { PlanId } from '../domain/model';
 import { requirePlatformAdmin } from './guards';
 
 interface LogEventInput {
@@ -58,7 +59,7 @@ export const getPlatformMetrics = onCall(async (request) => {
 
   const mrr = activeOrgsSnap.docs
     .filter((doc) => doc.get('subscription.status') === 'active')
-    .reduce((sum, doc) => sum + (PLAN_PRICES_USD[(doc.get('subscription.plan') as PlanId) ?? 'free'] ?? 0), 0);
+    .reduce((sum, doc) => sum + ((PLANS[(doc.get('subscription.plan') as PlanId) ?? 'free']?.priceMinor ?? 0) / 100), 0);
 
   // Cancelled ÷ total, not a trailing-30-day rate — see PlatformMetrics.churnRate on the web side.
   const churnRate = totalMerchants > 0 ? cancelledMerchants / totalMerchants : 0;

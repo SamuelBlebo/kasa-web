@@ -1,34 +1,41 @@
+import { FieldValue } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions/v2';
 import { GRAPH_VERSION } from '../config';
-import type { WhatsappCredentials } from '../types';
+import type { WhatsappCredentials } from '../domain/model';
+import { customerRef, messagesRef } from '../tenant';
 
-interface SendResult {
+/**
+ * The only place Kasa calls Meta's WhatsApp Cloud API (ported from
+ * OrderFlow's functions/src/whatsapp/client.ts and worker/src/whatsapp.ts).
+ */
+export interface SendResult {
   ok: boolean;
+  waMessageId: string | null;
   error?: string;
 }
 
 async function send(creds: WhatsappCredentials, payload: Record<string, unknown>): Promise<SendResult> {
   const url = `https://graph.facebook.com/${GRAPH_VERSION.value()}/${creds.phoneNumberId}/messages`;
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${creds.accessToken}`,
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ messaging_product: 'whatsapp', ...payload }),
-  });
-
-  if (!response.ok) {
-    const detail = await response.text();
-    logger.error('WhatsApp send failed', { status: response.status, detail });
-    return { ok: false, error: detail };
+  try {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${creds.accessToken}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messaging_product: 'whatsapp', ...payload }),
+    });
+    if (!response.ok) {
+      const detail = await response.text();
+      logger.error('WhatsApp send failed', { status: response.status, detail });
+      return { ok: false, waMessageId: null, error: detail };
+    }
+    const body = (await response.json().catch(() => ({}))) as { messages?: Array<{ id?: string }> };
+    return { ok: true, waMessageId: body.messages?.[0]?.id ?? null };
+  } catch (err) {
+    logger.error('WhatsApp send threw', err);
+    return { ok: false, waMessageId: null, error: String(err) };
   }
-  return { ok: true };
 }
 
-export function sendText(creds: WhatsappCredentials, to: string, body: string) {
-  return send(creds, { to, type: 'text', text: { preview_url: false, body } });
-}
+const truncate = (value: string, max: number) => (value.length <= max ? value : `${value.slice(0, max - 1)}…`);
 
 export interface ListRow {
   id: string;
@@ -36,65 +43,87 @@ export interface ListRow {
   description?: string;
 }
 
-export function sendList(
-  creds: WhatsappCredentials,
-  to: string,
-  opts: { body: string; buttonLabel: string; sectionTitle: string; rows: ListRow[]; footer?: string },
-) {
-  return send(creds, {
-    to,
-    type: 'interactive',
-    interactive: {
-      type: 'list',
-      body: { text: truncate(opts.body, 1024) },
-      ...(opts.footer ? { footer: { text: truncate(opts.footer, 60) } } : {}),
-      action: {
-        button: truncate(opts.buttonLabel, 20),
-        sections: [
-          {
-            title: truncate(opts.sectionTitle, 24),
-            rows: opts.rows.slice(0, 10).map((row) => ({
-              id: row.id.slice(0, 200),
-              title: truncate(row.title, 24),
-              ...(row.description ? { description: truncate(row.description, 72) } : {}),
-            })),
-          },
-        ],
+export const wa = {
+  text: (creds: WhatsappCredentials, to: string, body: string) =>
+    send(creds, { to, type: 'text', text: { preview_url: false, body: truncate(body, 4096) } }),
+
+  list: (creds: WhatsappCredentials, to: string, o: { body: string; button: string; section: string; rows: ListRow[] }) =>
+    send(creds, {
+      to,
+      type: 'interactive',
+      interactive: {
+        type: 'list',
+        body: { text: truncate(o.body, 1024) },
+        action: {
+          button: truncate(o.button, 20),
+          sections: [
+            {
+              title: truncate(o.section, 24),
+              rows: o.rows.slice(0, 10).map((r) => ({
+                id: r.id.slice(0, 200),
+                title: truncate(r.title, 24),
+                ...(r.description ? { description: truncate(r.description, 72) } : {}),
+              })),
+            },
+          ],
+        },
       },
-    },
-  });
-}
+    }),
 
-export function sendButtons(
-  creds: WhatsappCredentials,
-  to: string,
-  opts: { body: string; buttons: Array<{ id: string; title: string }>; header?: string },
-) {
-  return send(creds, {
-    to,
-    type: 'interactive',
-    interactive: {
-      type: 'button',
-      ...(opts.header ? { header: { type: 'text', text: truncate(opts.header, 60) } } : {}),
-      body: { text: truncate(opts.body, 1024) },
-      action: {
-        buttons: opts.buttons.slice(0, 3).map((b) => ({
-          type: 'reply',
-          reply: { id: b.id.slice(0, 200), title: truncate(b.title, 20) },
-        })),
+  buttons: (creds: WhatsappCredentials, to: string, o: { body: string; buttons: Array<{ id: string; title: string }> }) =>
+    send(creds, {
+      to,
+      type: 'interactive',
+      interactive: {
+        type: 'button',
+        body: { text: truncate(o.body, 1024) },
+        action: { buttons: o.buttons.slice(0, 3).map((b) => ({ type: 'reply', reply: { id: b.id.slice(0, 200), title: truncate(b.title, 20) } })) },
       },
-    },
-  });
-}
+    }),
 
-export function sendImage(creds: WhatsappCredentials, to: string, link: string, caption: string) {
-  return send(creds, { to, type: 'image', image: { link, caption: truncate(caption, 1024) } });
-}
+  markRead: (creds: WhatsappCredentials, messageId: string) => send(creds, { status: 'read', message_id: messageId }),
+};
 
-export function markAsRead(creds: WhatsappCredentials, messageId: string) {
-  return send(creds, { status: 'read', message_id: messageId });
-}
+export type Sender = 'bot' | 'staff';
 
-function truncate(value: string, max: number): string {
-  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
+/**
+ * Sends to one customer and records every message in their conversation,
+ * so the Inbox shows exactly what the customer saw.
+ */
+export class Outbox {
+  constructor(
+    private creds: WhatsappCredentials,
+    private orgId: string,
+    private waId: string,
+    private by: Sender = 'bot',
+    private staffUid: string | null = null,
+  ) {}
+
+  async text(body: string) {
+    return this.log(await wa.text(this.creds, this.waId, body), 'text', body, null);
+  }
+
+  async list(o: { body: string; button: string; section: string; rows: ListRow[] }) {
+    return this.log(await wa.list(this.creds, this.waId, o), 'list', o.body, { button: o.button, options: o.rows.map((r) => r.title) });
+  }
+
+  async buttons(o: { body: string; buttons: Array<{ id: string; title: string }> }) {
+    return this.log(await wa.buttons(this.creds, this.waId, o), 'buttons', o.body, { options: o.buttons.map((b) => b.title) });
+  }
+
+  private async log(result: SendResult, type: string, body: string, extra: Record<string, unknown> | null) {
+    await messagesRef(this.orgId, this.waId).add({
+      direction: 'out',
+      by: this.by,
+      staffUid: this.staffUid,
+      type,
+      body,
+      extra,
+      waMessageId: result.waMessageId,
+      failed: !result.ok,
+      createdAt: FieldValue.serverTimestamp(),
+    });
+    await customerRef(this.orgId, this.waId).set({ lastMessageAt: FieldValue.serverTimestamp() }, { merge: true });
+    return result;
+  }
 }

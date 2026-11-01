@@ -1,5 +1,6 @@
 rules_version = '2';
 
+// Product and service photos, scoped to the tenant: organizations/{orgId}/items/...
 service firebase.storage {
   match /b/{bucket}/o {
     function profile() {
@@ -10,11 +11,15 @@ service firebase.storage {
       return request.auth != null && profile().orgId == orgId;
     }
 
+    function canEditCatalog(orgId) {
+      return memberOf(orgId) && profile().role in ['owner', 'manager'];
+    }
+
     match /organizations/{orgId}/{allPaths=**} {
       allow read: if memberOf(orgId);
-      allow write: if memberOf(orgId)
-        && request.resource.size < 5 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+      allow write: if canEditCatalog(orgId)
+        && (request.resource == null
+          || (request.resource.size < 5 * 1024 * 1024 && request.resource.contentType.matches('image/.*')));
     }
   }
 }
