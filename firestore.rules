@@ -1,0 +1,161 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---- helpers -------------------------------------------------------
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profile() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // The single gate for tenant isolation: your profile must name this org.
+    function memberOf(orgId) {
+      return signedIn() && profile().orgId == orgId;
+    }
+
+    function hasRole(orgId, roles) {
+      return memberOf(orgId) && profile().role in roles;
+    }
+
+    // OrderFlow staff, not a merchant — provisioned out-of-band (see
+    // functions/src/http/admin.ts), never self-serve. Deliberately checked
+    // by document existence rather than a claim, so it reads through the
+    // same single Firestore-is-the-source-of-truth model as memberOf/hasRole.
+    function isPlatformAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/platformAdmins/$(request.auth.uid));
+    }
+
+    // ---- users ---------------------------------------------------------
+    match /users/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow create: if signedIn() && request.auth.uid == uid;
+      // A user can never move themselves into another tenant or promote themselves.
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && request.resource.data.orgId == resource.data.orgId
+        && request.resource.data.role == resource.data.role;
+      allow delete: if false;
+    }
+
+    // ---- organizations -------------------------------------------------
+    match /organizations/{orgId} {
+      allow read: if memberOf(orgId);
+      allow create: if signedIn() && request.resource.data.ownerUid == request.auth.uid;
+      // Everything but the plan itself — subscription changes go through the
+      // changePlan Cloud Function (functions/src/http/billing.ts), which is
+      // the only path that can eventually confirm a real payment before
+      // granting a paid tier. A client writing this directly would be
+      // billing fraud by omission.
+      // Suspension is a platform-admin moderation action (suspendMerchant /
+      // unsuspendMerchant in functions/src/http/admin.ts) — a merchant
+      // marking themselves un-suspended would defeat the entire point.
+      allow update: if hasRole(orgId, ['owner', 'admin'])
+        && !request.resource.data.diff(resource.data).affectedKeys()
+             .hasAny(['subscription', 'suspended', 'suspendedReason', 'suspendedAt']);
+      // Recursive delete only — see deleteMerchant, which uses the Admin SDK
+      // and so bypasses this rule entirely, same as every other cross-tenant
+      // platform-admin action.
+      allow delete: if false;
+
+      // ---- tenant-owned data ------------------------------------------
+      match /products/{productId} {
+        allow read: if memberOf(orgId);
+        allow write: if hasRole(orgId, ['owner', 'admin']);
+      }
+
+      match /customers/{customerId} {
+        allow read: if memberOf(orgId);
+        // Everything but note/unreadCount comes from WhatsApp activity, via
+        // the Worker or a Cloud Function. A merchant can add a note directly,
+        // and can clear unreadCount by opening the conversation in the Inbox
+        // (sendReply, the other way it clears, goes through a callable
+        // instead, since it also has to call the Graph API).
+        allow update: if memberOf(orgId)
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['note', 'unreadCount', 'updatedAt']);
+        allow create, delete: if false;
+
+        // One customer's full conversation — see the Inbox. Written only by
+        // the Worker (inbound + every bot reply) or sendReply (a merchant's
+        // manual reply), both of which bypass these rules entirely; never by
+        // the client directly.
+        match /messages/{messageId} {
+          allow read: if memberOf(orgId);
+          allow write: if false;
+        }
+      }
+
+      // A record of each broadcast sent — written by sendBroadcast
+      // (functions/src/http/customers.ts) via the Admin SDK, read-only here.
+      match /broadcasts/{broadcastId} {
+        allow read: if memberOf(orgId);
+        allow write: if false;
+      }
+
+      match /orders/{orderId} {
+        allow read: if memberOf(orgId);
+        allow create: if false; // orders originate from the WhatsApp webhook
+        allow update: if memberOf(orgId)
+          && request.resource.data.diff(resource.data).affectedKeys()
+               .hasOnly(['status', 'note', 'riderName', 'riderPhone', 'estimatedDeliveryAt', 'statusHistory', 'updatedAt']);
+        allow delete: if false;
+
+        // Normalized copy of the order's own `items` array — same origin,
+        // same access: written once by the bot, read-only to the dashboard.
+        match /orderItems/{itemId} {
+          allow read: if memberOf(orgId);
+          allow write: if false;
+        }
+      }
+    }
+
+    // ---- whatsappAccounts -----------------------------------------------
+    // Holds the Meta access token per connected number. Written only by Cloud
+    // Functions via the Admin SDK (connectWhatsapp/disconnectWhatsapp,
+    // functions/src/http/organizations.ts), which bypasses these rules
+    // entirely — this block exists to document that intent, since the
+    // catch-all below would deny it anyway.
+    match /whatsappAccounts/{phoneNumberId} {
+      allow read, write: if false;
+    }
+
+    // ---- platform admin ---------------------------------------------------
+    // Grants live only here — a user reads their own doc to know whether the
+    // admin UI should even render for them. Only the Admin SDK (a one-off
+    // provisioning script, never a callable) writes this collection: there is
+    // no self-serve "become an admin" path anywhere in this app on purpose.
+    match /platformAdmins/{uid} {
+      allow read: if signedIn() && request.auth.uid == uid;
+      allow write: if false;
+    }
+
+    // Platform-wide config, not merchant tenant data — safe for admins to
+    // read/write directly rather than routing through a callable.
+    match /featureFlags/{flagId} {
+      allow read, write: if isPlatformAdmin();
+    }
+
+    // Admin-action audit trail — written only by suspendMerchant /
+    // unsuspendMerchant / deleteMerchant / setFeatureFlag via the Admin SDK.
+    match /platformLogs/{logId} {
+      allow read: if isPlatformAdmin();
+      allow write: if false;
+    }
+
+    // ---- rate limits -------------------------------------------------------
+    // Counters for checkRateLimit (functions/src/rateLimit.ts) — broadcast
+    // sends and inbound-message throttling. Admin-SDK-only, same reasoning as
+    // whatsappAccounts: nothing here is useful or safe for a client to see.
+    match /rateLimits/{key} {
+      allow read, write: if false;
+    }
+
+    // Anything not matched above is denied.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

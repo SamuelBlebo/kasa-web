@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>OrderFlow — Sell on WhatsApp</title>
+    <meta
+      name="description"
+      content="OrderFlow lets a small business sell through WhatsApp — no app, no website. Merchants connect a WhatsApp number and upload products; customers just message and order."
+    />
+    <meta property="og:title" content="OrderFlow — Sell on WhatsApp" />
+    <meta
+      property="og:description"
+      content="Merchants connect a WhatsApp number and upload products. Customers just message the business and order — no app, no website."
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary" />
+    <!--
+      This is a client-rendered SPA (see README's "What is not built yet") —
+      every route resolves this same title/description at the HTML level
+      until a crawler runs its JS. usePageTitle (src/hooks/usePageTitle.ts)
+      overrides document.title per marketing route for that case, but a
+      social-media unfurl (which never executes JS) always sees this.
+    -->
+    <script>
+      // Applied before first paint so dark mode never flashes.
+      (function () {
+        try {
+          var saved = localStorage.getItem('orderflow.theme');
+          var dark = saved ? saved === 'dark'
+            : window.matchMedia('(prefers-color-scheme: dark)').matches;
+          if (dark) document.documentElement.classList.add('dark');
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

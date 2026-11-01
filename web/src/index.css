@@ -1,0 +1,56 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* One token set, two themes. Tailwind reads these via tailwind.config.js. */
+@layer base {
+  :root {
+    --c-canvas: 245 247 248;
+    --c-surface: 255 255 255;
+    --c-raised: 240 243 245;
+    --c-line: 224 229 233;
+    --c-ink: 17 24 31;
+    --c-muted: 100 114 126;
+    --c-brand: 12 122 105;
+    --c-brand-soft: 226 243 238;
+    --c-danger: 199 58 58;
+    --c-warn: 176 118 0;
+    --c-info: 39 99 190;
+  }
+
+  .dark {
+    --c-canvas: 13 18 22;
+    --c-surface: 22 30 35;
+    --c-raised: 29 38 44;
+    --c-line: 42 53 61;
+    --c-ink: 231 237 242;
+    --c-muted: 147 161 173;
+    --c-brand: 45 199 155;
+    --c-brand-soft: 20 48 44;
+    --c-danger: 233 106 106;
+    --c-warn: 219 165 46;
+    --c-info: 111 163 246;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-canvas text-ink antialiased;
+    font-feature-settings: 'cv02', 'cv03', 'cv04';
+  }
+
+  *:focus-visible {
+    @apply outline-none ring-2 ring-brand ring-offset-2 ring-offset-canvas;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
