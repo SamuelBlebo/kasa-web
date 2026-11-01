@@ -24,8 +24,8 @@ export function PublicOnlyRoute() {
   const { user, profile, isPlatformAdmin, initialising } = useAuth();
   if (initialising) return <FullPageSpinner />;
   if (user && isPlatformAdmin) return <Navigate to="/admin" replace />;
-  if (user && !profile) return <Navigate to="/onboarding" replace />;
-  if (user) return <Navigate to="/dashboard" replace />;
+  if (user && !profile?.orgId) return <Navigate to="/onboarding" replace />;
+  if (user) return <Navigate to="/today" replace />;
   return <Outlet />;
 }
 
@@ -35,7 +35,7 @@ export function OnboardingRoute() {
   if (initialising) return <FullPageSpinner />;
   if (!user) return <Navigate to="/login" replace />;
   if (isPlatformAdmin) return <Navigate to="/admin" replace />;
-  if (profile) return <Navigate to="/dashboard" replace />;
+  if (profile?.orgId) return <Navigate to="/today" replace />;
   return <Outlet />;
 }
 
@@ -49,6 +49,6 @@ export function RequirePlatformAdmin() {
   const location = useLocation();
   if (initialising) return <FullPageSpinner />;
   if (!user) return <Navigate to="/login" replace state={{ from: location.pathname }} />;
-  if (!isPlatformAdmin) return <Navigate to="/dashboard" replace />;
+  if (!isPlatformAdmin) return <Navigate to="/today" replace />;
   return <Outlet />;
 }

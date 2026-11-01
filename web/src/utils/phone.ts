@@ -7,7 +7,7 @@ export function normalizePhone(phone: string): string {
   return phone.replace(/\D/g, '');
 }
 
-const AUTH_EMAIL_DOMAIN = 'phone.orderflow.internal';
+const AUTH_EMAIL_DOMAIN = 'phone.kasa.internal';
 
 /**
  * Firebase Auth still needs an email under the hood, but a merchant who

@@ -1,5 +1,6 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import { Button } from './Button';
+import { Icon } from './Icon';
 
 interface ModalProps {
   open: boolean;
@@ -67,14 +68,14 @@ export function Modal({ open, title, onClose, children, footer }: ModalProps) {
       aria-modal="true"
       aria-label={title}
       tabIndex={-1}
-      className="fixed inset-0 z-50 grid animate-fade-in place-items-center bg-black/50 p-4 outline-none"
+      className="fixed inset-0 z-50 grid animate-fade-in place-items-center bg-[#14121e]/40 p-4 outline-none"
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
       <div className="max-h-[88vh] w-full max-w-lg overflow-auto rounded-2xl border border-line bg-surface shadow-card">
         <div className="flex items-center justify-between border-b border-line px-5 py-4">
           <h2 className="text-base font-semibold text-ink">{title}</h2>
           <Button variant="ghost" size="sm" onClick={onClose} aria-label="Close">
-            ✕
+            <Icon name="x" />
           </Button>
         </div>
         <div className="p-5">{children}</div>

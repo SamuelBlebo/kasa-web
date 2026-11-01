@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui';
-import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
 import { signOutMerchant } from '@/services';
 import { initials } from '@/utils/format';
@@ -18,7 +17,7 @@ export function AdminTopbar({ onOpenSidebar }: { onOpenSidebar: () => void }) {
       <p className="truncate text-sm font-semibold text-ink">Platform Admin</p>
 
       <div className="ml-auto flex items-center gap-1">
-        <ThemeToggle />
+        
         <div className="relative">
           <button
             onClick={() => setMenuOpen((v) => !v)}

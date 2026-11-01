@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { Link, NavLink, Outlet } from 'react-router-dom';
 import { Button } from '@/components/ui';
 import { Logo } from '@/components/layout/Logo';
-import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { useAuth } from '@/hooks/useAuth';
 import { cn } from '@/utils/cn';
 
@@ -42,7 +41,7 @@ export function MarketingLayout() {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <ThemeToggle />
+            
             {!initialising && user ? (
               <Link to="/dashboard">
                 <Button size="sm">Go to dashboard</Button>

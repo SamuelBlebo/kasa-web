@@ -1,6 +1,5 @@
 import { Outlet } from 'react-router-dom';
 import { Logo } from '@/components/layout/Logo';
-import { ThemeToggle } from '@/components/layout/ThemeToggle';
 
 export function AuthLayout() {
   return (
@@ -25,7 +24,7 @@ export function AuthLayout() {
           <div className="lg:hidden">
             <Logo />
           </div>
-          <ThemeToggle />
+          
         </div>
         <div className="flex flex-1 items-center justify-center">
           <div className="w-full max-w-sm">

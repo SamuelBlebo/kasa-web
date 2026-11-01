@@ -2,26 +2,13 @@ import type { HTMLAttributes, ReactNode } from 'react';
 import { cn } from '@/utils/cn';
 
 export function Card({ className, ...rest }: HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div
-      className={cn('rounded-2xl border border-line bg-surface shadow-card', className)}
-      {...rest}
-    />
-  );
+  return <div className={cn('overflow-hidden rounded-2xl border border-line bg-surface', className)} {...rest} />;
 }
 
-export function CardHeader({
-  title,
-  description,
-  action,
-}: {
-  title: string;
-  description?: string;
-  action?: ReactNode;
-}) {
+export function CardHeader({ title, description, action }: { title: ReactNode; description?: string; action?: ReactNode }) {
   return (
-    <div className="flex items-start justify-between gap-4 border-b border-line px-5 py-4">
-      <div>
+    <div className="flex items-center justify-between gap-4 border-b border-line px-5 py-3.5">
+      <div className="min-w-0">
         <h2 className="text-base font-semibold text-ink">{title}</h2>
         {description && <p className="mt-0.5 text-sm text-muted">{description}</p>}
       </div>

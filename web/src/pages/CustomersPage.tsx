@@ -1,410 +1,165 @@
 import { useMemo, useState } from 'react';
-import { Badge, Button, Card, EmptyState, Input, Modal, Select, Spinner, StatusBadge } from '@/components/ui';
+import { Link, useSearchParams } from 'react-router-dom';
+import { limit, orderBy, query, where } from 'firebase/firestore';
+import { PayBadge, StatusBadge, itemsText } from '@/components/orders/OrderBits';
 import { PageHeader } from '@/components/layout/PageHeader';
-import { useAuth } from '@/hooks/useAuth';
+import { Badge, Button, Drawer, EmptyState, Icon, SearchInput, Select, Textarea } from '@/components/ui';
+import { customersRef, ordersRef } from '@/firebase';
 import { useCollection } from '@/hooks/useCollection';
+import { useOrg, usePermission } from '@/hooks/usePermission';
+import { usePageTitle } from '@/hooks/usePageTitle';
 import { useToast } from '@/hooks/useToast';
-import {
-  customerOrdersQuery,
-  customersQuery,
-  isRepeatCustomer,
-  sendBroadcast,
-  updateCustomerNote,
-} from '@/services';
+import { saveCustomerNote, sendBroadcast } from '@/services';
 import type { Customer, WithId } from '@/types';
-import { formatDate, formatMoney } from '@/utils/format';
 import { toMessage } from '@/utils/errors';
-
-type AudienceFilter = 'all' | 'repeat';
+import { cedis, formatPhone, shortWhen } from '@/utils/format';
 
 export function CustomersPage() {
-  const { org } = useAuth();
-  const orgId = org!.id;
-  const customers = useCollection(useMemo(() => customersQuery(orgId), [orgId]));
-
-  const [search, setSearch] = useState('');
-  const [audience, setAudience] = useState<AudienceFilter>('all');
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-  const [detail, setDetail] = useState<WithId<Customer> | null>(null);
-  const [broadcastOpen, setBroadcastOpen] = useState(false);
-
-  const rows = customers.status === 'ready' ? customers.data : [];
-  const filtered = rows.filter((c) => {
-    if (audience === 'repeat' && !isRepeatCustomer(c)) return false;
-    if (search && !`${c.name} ${c.phone}`.toLowerCase().includes(search.trim().toLowerCase())) return false;
-    return true;
-  });
-
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  };
-
-  const allVisibleSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
-  const toggleSelectAllVisible = () => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (allVisibleSelected) filtered.forEach((c) => next.delete(c.id));
-      else filtered.forEach((c) => next.add(c.id));
-      return next;
-    });
-  };
-
-  // Keep the open detail modal in sync with live updates (e.g. a note just saved).
-  const liveDetail = detail ? (rows.find((c) => c.id === detail.id) ?? detail) : null;
+  usePageTitle('Customers');
+  const { org } = useOrg();
+  const canBroadcast = usePermission('broadcasts.send');
+  const [params, setParams] = useSearchParams();
+  const [q, setQ] = useState('');
+  const [broadcasting, setBroadcasting] = useState(false);
+  const list = useCollection(useMemo(() => query(customersRef(org.id), orderBy('lastMessageAt', 'desc'), limit(500)), [org.id]));
+  const all = list.status === 'ready' ? list.data : [];
+  const needle = q.trim().toLowerCase();
+  const rows = all.filter((c) => !needle || `${c.name ?? ''} ${c.phone} ${c.address ?? ''}`.toLowerCase().includes(needle));
+  const selected = params.get('c');
 
   return (
-    <>
+    <div className="mx-auto max-w-6xl px-4 py-6 lg:px-8">
       <PageHeader
         title="Customers"
-        description="Built from the numbers that message you. Nobody signs up."
-        action={
-          <Button onClick={() => setBroadcastOpen(true)} disabled={selectedIds.size === 0}>
-            Broadcast{selectedIds.size > 0 ? ` (${selectedIds.size})` : ''}
-          </Button>
-        }
+        description={`Everyone who has messaged ${org.name}. Customers never need an account.`}
+        actions={canBroadcast && <Button onClick={() => setBroadcasting(true)}><Icon name="send" /> Send a promotion</Button>}
       />
-
-      <div className="mb-4 flex flex-wrap gap-3">
-        <div className="w-full sm:max-w-xs sm:flex-1">
-          <Input
-            aria-label="Search customers"
-            placeholder="Search by name or phone..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
+      <div className="mb-4"><SearchInput value={q} onChange={setQ} placeholder="Name, number or area" /></div>
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+        <div className="hidden grid-cols-[minmax(180px,2fr)_80px_130px_120px_110px] gap-4 bg-raised px-4 py-2.5 font-cap text-[11px] font-semibold uppercase tracking-[0.12em] text-muted md:grid">
+          <span>Customer</span><span className="text-right">Orders</span><span className="text-right">Spent</span><span>Last message</span><span>Tag</span>
         </div>
-        <div className="w-full sm:w-48">
-          <Select aria-label="Filter customers" value={audience} onChange={(e) => setAudience(e.target.value as AudienceFilter)}>
-            <option value="all">All customers</option>
-            <option value="repeat">Repeat customers</option>
-          </Select>
-        </div>
+        {list.status === 'ready' && rows.length === 0 && <EmptyState title="No customers yet" description="Customers appear here the first time they message your WhatsApp number." />}
+        {rows.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            onClick={() => setParams({ c: c.id })}
+            className="grid w-full grid-cols-[1fr_auto] items-center gap-x-4 gap-y-1 border-t border-line px-4 py-3 text-left first:border-t-0 hover:bg-[#FBF6EC] md:grid-cols-[minmax(180px,2fr)_80px_130px_120px_110px]"
+          >
+            <span className="min-w-0">
+              <span className="block truncate font-semibold">{c.name ?? c.waProfileName ?? 'Unnamed'}</span>
+              <span className="tabular block text-[13px] text-muted">{formatPhone(c.phone)}{c.address ? ` · ${c.address.split(',')[0]}` : ''}</span>
+            </span>
+            <span className="tabular hidden text-right md:block">{c.orderCount}</span>
+            <span className="tabular text-right">{cedis(c.totalSpentMinor)}</span>
+            <span className="tabular hidden text-muted md:block">{shortWhen(c.lastMessageAt)}</span>
+            <span className="hidden md:block">{c.orderCount >= 5 ? <Badge tone="ok">Regular</Badge> : c.orderCount <= 1 ? <Badge tone="brand">New</Badge> : <Badge>Returning</Badge>}</span>
+          </button>
+        ))}
       </div>
-
-      {customers.status === 'loading' && (
-        <div className="grid place-items-center py-16">
-          <Spinner />
-        </div>
-      )}
-
-      {customers.status === 'error' && (
-        <Card>
-          <EmptyState title="Customers did not load" description={customers.error} />
-        </Card>
-      )}
-
-      {customers.status === 'ready' && rows.length === 0 && (
-        <Card>
-          <EmptyState
-            title="No customers yet"
-            description="A customer record is created the first time someone messages your WhatsApp number."
-          />
-        </Card>
-      )}
-
-      {customers.status === 'ready' && rows.length > 0 && filtered.length === 0 && (
-        <Card>
-          <EmptyState title="No customers match" description="Try a different search term or filter." />
-        </Card>
-      )}
-
-      {filtered.length > 0 && (
-        <Card>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-line text-left text-xs font-semibold text-muted">
-                  <th className="w-10 px-5 py-3">
-                    <input
-                      type="checkbox"
-                      checked={allVisibleSelected}
-                      onChange={toggleSelectAllVisible}
-                      className="h-4 w-4 rounded border-line text-brand focus:ring-brand"
-                      aria-label="Select all visible customers"
-                    />
-                  </th>
-                  <th className="px-5 py-3">Customer</th>
-                  <th className="px-5 py-3">Orders</th>
-                  <th className="px-5 py-3">Total spent</th>
-                  <th className="px-5 py-3">Last order</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((customer) => (
-                  <tr key={customer.id} className="border-b border-line last:border-0 hover:bg-raised">
-                    <td className="px-5 py-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedIds.has(customer.id)}
-                        onChange={() => toggleSelect(customer.id)}
-                        className="h-4 w-4 rounded border-line text-brand focus:ring-brand"
-                        aria-label={`Select ${customer.name}`}
-                      />
-                    </td>
-                    <td className="cursor-pointer px-5 py-3" onClick={() => setDetail(customer)}>
-                      <div className="flex items-center gap-2">
-                        <span className="text-ink">{customer.name}</span>
-                        {isRepeatCustomer(customer) && <Badge className="bg-brand/10 text-brand">Repeat</Badge>}
-                      </div>
-                      <div className="text-xs text-muted">{customer.phone}</div>
-                    </td>
-                    <td className="cursor-pointer px-5 py-3 text-muted" onClick={() => setDetail(customer)}>
-                      {customer.orderCount}
-                    </td>
-                    <td className="cursor-pointer px-5 py-3 font-semibold text-ink" onClick={() => setDetail(customer)}>
-                      {formatMoney(customer.totalSpent, org!.currency)}
-                    </td>
-                    <td className="cursor-pointer px-5 py-3 text-xs text-muted" onClick={() => setDetail(customer)}>
-                      {formatDate(customer.lastOrderAt)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Card>
-      )}
-
-      {liveDetail && (
-        <CustomerDetailModal
-          customer={liveDetail}
-          orgId={orgId}
-          currency={org!.currency}
-          onClose={() => setDetail(null)}
-        />
-      )}
-
-      {broadcastOpen && (
-        <BroadcastModal
-          customerIds={[...selectedIds]}
-          onClose={() => setBroadcastOpen(false)}
-          onSent={() => {
-            setBroadcastOpen(false);
-            setSelectedIds(new Set());
-          }}
-        />
-      )}
-    </>
+      <CustomerDrawer customer={all.find((c) => c.id === selected) ?? null} onClose={() => setParams({})} />
+      {canBroadcast && <BroadcastDrawer open={broadcasting} customers={all} onClose={() => setBroadcasting(false)} />}
+    </div>
   );
 }
 
-function CustomerDetailModal({
-  customer,
-  orgId,
-  currency,
-  onClose,
-}: {
-  customer: WithId<Customer>;
-  orgId: string;
-  currency: string;
-  onClose: () => void;
-}) {
-  const orders = useCollection(useMemo(() => customerOrdersQuery(orgId, customer.id), [orgId, customer.id]));
-  const rows = orders.status === 'ready' ? orders.data : [];
-
+function CustomerDrawer({ customer, onClose }: { customer: WithId<Customer> | null; onClose: () => void }) {
+  const { org } = useOrg();
   const toast = useToast();
-  const [note, setNote] = useState(customer.note ?? '');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const saveNote = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      await updateCustomerNote(orgId, customer.id, note || null);
-      toast.success('Note saved.');
-    } catch (err) {
-      setError(toMessage(err));
-    } finally {
-      setBusy(false);
-    }
-  };
-
+  const canWrite = usePermission('customers.write');
+  const [note, setNote] = useState<string | null>(null);
+  const orders = useCollection(useMemo(() => (customer ? query(ordersRef(org.id), where('customerId', '==', customer.id), orderBy('createdAt', 'desc'), limit(20)) : null), [org.id, customer]));
+  if (!customer) return null;
+  const value = note ?? customer.note ?? '';
   return (
-    <Modal
+    <Drawer
       open
-      title={customer.name}
-      onClose={onClose}
+      title={customer.name ?? customer.waProfileName ?? formatPhone(customer.phone)}
+      onClose={() => { setNote(null); onClose(); }}
       footer={
-        <Button type="button" variant="secondary" onClick={onClose}>
-          Close
-        </Button>
+        <>
+          <Link to={`/chats/${customer.id}`} className="inline-flex h-10 items-center gap-2 rounded-full border border-line2 px-4 text-sm font-semibold hover:bg-raised"><Icon name="chat" /> Open chat</Link>
+          {canWrite && (
+            <Button onClick={async () => {
+              try {
+                await saveCustomerNote(org.id, customer.id, value);
+                toast.success('Note saved.');
+              } catch (e) {
+                toast.error(toMessage(e));
+              }
+            }}>Save note</Button>
+          )}
+        </>
       }
     >
-      <div className="space-y-4 text-sm">
-        <div className="flex items-center justify-between">
-          <a href={`tel:${customer.phone}`} className="text-brand">
-            {customer.phone}
-          </a>
-          {isRepeatCustomer(customer) && <Badge className="bg-brand/10 text-brand">Repeat customer</Badge>}
-        </div>
-
-        <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-xl border border-line p-3 text-center">
-            <p className="text-xs text-muted">Orders</p>
-            <p className="text-lg font-bold text-ink">{customer.orderCount}</p>
-          </div>
-          <div className="rounded-xl border border-line p-3 text-center">
-            <p className="text-xs text-muted">Total spent</p>
-            <p className="text-lg font-bold text-ink">{formatMoney(customer.totalSpent, currency)}</p>
-          </div>
-          <div className="rounded-xl border border-line p-3 text-center">
-            <p className="text-xs text-muted">Last order</p>
-            <p className="text-sm font-semibold text-ink">{formatDate(customer.lastOrderAt)}</p>
-          </div>
-        </div>
-
-        {customer.address && (
-          <div>
-            <p className="text-xs font-semibold text-muted">Last known address</p>
-            <p className="text-ink">{customer.address}</p>
-          </div>
-        )}
-
-        <div>
-          <div className="flex items-center justify-between">
-            <label className="block text-xs font-semibold text-muted" htmlFor="customer-note">
-              Note (visible to your team only)
-            </label>
-            <Button type="button" variant="ghost" size="sm" loading={busy} onClick={saveNote}>
-              Save
-            </Button>
-          </div>
-          <textarea
-            id="customer-note"
-            rows={2}
-            value={note}
-            onChange={(e) => setNote(e.target.value)}
-            className="mt-1.5 w-full rounded-xl border border-line bg-raised px-3 py-2 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none"
-            placeholder="e.g. Prefers evening deliveries"
-          />
-        </div>
-
-        {error && (
-          <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm font-medium text-danger">{error}</p>
-        )}
-
-        <div>
-          <p className="mb-2 text-xs font-semibold text-muted">Order history</p>
-          {orders.status === 'loading' && (
-            <div className="grid place-items-center py-6">
-              <Spinner />
-            </div>
-          )}
-          {orders.status === 'ready' && rows.length === 0 && (
-            <p className="text-xs text-muted">No orders yet.</p>
-          )}
-          {rows.length > 0 && (
-            <div className="rounded-xl border border-line">
-              {rows.map((order) => (
-                <div
-                  key={order.id}
-                  className="flex items-center justify-between border-b border-line px-3 py-2 last:border-0"
-                >
-                  <div>
-                    <p className="font-medium text-ink">#{order.number}</p>
-                    <p className="text-xs text-muted">{formatDate(order.createdAt)}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <StatusBadge status={order.status} />
-                    <span className="font-semibold text-ink">{formatMoney(order.total, order.currency)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-sm">
+        <dt className="text-muted">WhatsApp</dt><dd className="tabular text-right">{formatPhone(customer.phone)}</dd>
+        {customer.address && (<><dt className="text-muted">Address</dt><dd className="text-right">{customer.address}</dd></>)}
+        <dt className="text-muted">Orders</dt><dd className="tabular text-right">{customer.orderCount}</dd>
+        <dt className="text-muted">Spent</dt><dd className="tabular text-right">{cedis(customer.totalSpentMinor)}</dd>
+        <dt className="text-muted">First message</dt><dd className="text-right">{shortWhen(customer.createdAt)}</dd>
+      </dl>
+      {canWrite && <div className="mt-4"><Textarea label="Private note" placeholder="Only your team sees this" value={value} onChange={(e) => setNote(e.target.value)} /></div>}
+      <h3 className="mb-2 mt-5 font-semibold">Orders</h3>
+      <div className="overflow-hidden rounded-2xl border border-line bg-surface">
+        {orders.status === 'ready' && orders.data.length === 0 && <p className="p-4 text-sm text-muted">No orders yet.</p>}
+        {orders.status === 'ready' && orders.data.map((o) => (
+          <Link key={o.id} to={`/orders?order=${o.id}`} className="grid grid-cols-[56px_1fr_auto] gap-3 border-t border-line px-4 py-2.5 text-sm first:border-t-0 hover:bg-raised">
+            <span className="tabular font-semibold">#{o.number}</span>
+            <span className="min-w-0"><span className="block truncate">{itemsText(o)}</span><span className="mt-1 flex gap-1.5"><StatusBadge order={o} /><PayBadge order={o} /></span></span>
+            <span className="tabular">{cedis(o.totalMinor)}</span>
+          </Link>
+        ))}
       </div>
-    </Modal>
+    </Drawer>
   );
 }
 
-function BroadcastModal({
-  customerIds,
-  onClose,
-  onSent,
-}: {
-  customerIds: string[];
-  onClose: () => void;
-  onSent: () => void;
-}) {
-  const [message, setMessage] = useState('');
+function BroadcastDrawer({ open, customers, onClose }: { open: boolean; customers: WithId<Customer>[]; onClose: () => void }) {
+  const { org } = useOrg();
+  const toast = useToast();
+  const [audience, setAudience] = useState<'all' | 'regulars' | 'lapsed'>('all');
+  const [message, setMessage] = useState(`Hello from ${org.name}! `);
   const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ sentCount: number; failedCount: number } | null>(null);
-
-  const send = async () => {
-    if (!message.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await sendBroadcast(message.trim(), customerIds);
-      setResult(res);
-    } catch (err) {
-      setError(toMessage(err));
-    } finally {
-      setBusy(false);
-    }
+  const month = Date.now() - 30 * 86400000;
+  const groups = {
+    all: customers,
+    regulars: customers.filter((c) => c.orderCount >= 5),
+    lapsed: customers.filter((c) => c.orderCount > 0 && (c.lastOrderAt?.toMillis() ?? 0) < month),
   };
-
+  const target = groups[audience].slice(0, 300);
+  const allowed = ['growth', 'pro'].includes(org.subscription.plan);
   return (
-    <Modal
-      open
-      title="Broadcast a message"
+    <Drawer
+      open={open}
+      title="Send a promotion"
       onClose={onClose}
-      footer={
-        result ? (
-          <Button type="button" onClick={onSent}>
-            Done
-          </Button>
-        ) : (
-          <>
-            <Button type="button" variant="secondary" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button type="button" loading={busy} disabled={!message.trim()} onClick={send}>
-              Send to {customerIds.length}
-            </Button>
-          </>
-        )
-      }
+      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button disabled={!allowed || !target.length || message.trim().length < 5} loading={busy} onClick={async () => {
+        setBusy(true);
+        try {
+          const r = await sendBroadcast(message.trim(), target.map((c) => c.id));
+          toast.success(`Sent to ${r.sentCount}. ${r.failedCount ? `${r.failedCount} could not be reached.` : ''}`);
+          onClose();
+        } catch (e) {
+          toast.error(toMessage(e));
+        } finally {
+          setBusy(false);
+        }
+      }}><Icon name="send" /> Send to {target.length}</Button></>}
     >
-      {result ? (
-        <p className="text-sm text-ink">
-          Sent to {result.sentCount} of {customerIds.length} customer{customerIds.length === 1 ? '' : 's'}.
-          {result.failedCount > 0 && ` ${result.failedCount} could not be reached.`}
+      {!allowed && <p className="mb-4 rounded-lg bg-accent-soft px-3 py-2 text-sm text-accent-ink">Promotions are on the Growth plan and above. <Link to="/settings/plan" className="font-semibold underline">See plans</Link></p>}
+      <div className="space-y-3">
+        <Select label="Who gets it" value={audience} onChange={(e) => setAudience(e.target.value as typeof audience)}>
+          <option value="all">Everyone ({groups.all.length})</option>
+          <option value="regulars">Regulars, 5+ orders ({groups.regulars.length})</option>
+          <option value="lapsed">Haven't ordered in 30 days ({groups.lapsed.length})</option>
+        </Select>
+        <Textarea label="Message" rows={5} value={message} onChange={(e) => setMessage(e.target.value)} />
+        <p className="text-sm text-muted">
+          WhatsApp only delivers free text to customers who messaged you in the last 24 hours. Reaching everyone else needs a Meta-approved promotion template. Up to 300 people, 3 sends an hour.
         </p>
-      ) : (
-        <div className="space-y-3">
-          <p className="text-sm text-muted">
-            Sending to {customerIds.length} customer{customerIds.length === 1 ? '' : 's'}.
-          </p>
-          <label className="sr-only" htmlFor="broadcast-message">
-            Broadcast message
-          </label>
-          <textarea
-            id="broadcast-message"
-            rows={4}
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            maxLength={1000}
-            className="w-full rounded-xl border border-line bg-raised px-3 py-2.5 text-sm text-ink placeholder:text-muted focus:border-brand focus:outline-none"
-            placeholder="e.g. 20% off everything this weekend only!"
-          />
-          <p className="text-xs text-muted">
-            Customers outside your 24-hour WhatsApp messaging window may need a Meta-approved template to
-            receive this — anyone that can't be reached shows up in the failed count, not silently.
-          </p>
-          {error && (
-            <p className="rounded-xl bg-danger/10 px-3 py-2 text-sm font-medium text-danger">{error}</p>
-          )}
-        </div>
-      )}
-    </Modal>
+      </div>
+    </Drawer>
   );
 }

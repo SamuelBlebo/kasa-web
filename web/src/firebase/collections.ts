@@ -1,113 +1,51 @@
-import {
-  collection,
-  doc,
-  type CollectionReference,
-  type DocumentReference,
-} from 'firebase/firestore';
+import { collection, doc, type CollectionReference, type DocumentReference } from 'firebase/firestore';
 import { db } from './config';
 import type {
-  Broadcast,
+  CatalogItem,
   Customer,
+  DraftOrder,
   FeatureFlag,
+  Invite,
+  Member,
   Message,
   Order,
-  OrderItem,
   Organization,
+  Payment,
   PlatformAdmin,
   PlatformLog,
-  Product,
+  StockMovement,
   UserProfile,
 } from '@/types';
 
 /**
- * Every tenant-owned collection hangs off /organizations/{orgId}.
- * Nothing else in the app builds a Firestore path by hand, so tenant scoping
- * is impossible to forget. platformAdmins/featureFlags/platformLogs are the
- * deliberate exception — platform-admin concerns, never tenant-scoped.
+ * Every tenant-owned path hangs off organizations/{orgId} and is built here
+ * only (pattern kept from OrderFlow), so a query that forgets its tenant
+ * cannot be written.
  */
-export const paths = {
-  organizations: 'organizations',
-  users: 'users',
-  products: 'products',
-  customers: 'customers',
-  orders: 'orders',
-  orderItems: 'orderItems',
-  broadcasts: 'broadcasts',
-  messages: 'messages',
-  platformAdmins: 'platformAdmins',
-  featureFlags: 'featureFlags',
-  platformLogs: 'platformLogs',
-} as const;
+const org = (orgId: string, ...rest: string[]) => ['organizations', orgId, ...rest] as const;
+const col = <T>(...segments: readonly string[]) => collection(db, segments[0], ...segments.slice(1)) as CollectionReference<T>;
+const ref = <T>(...segments: readonly string[]) => doc(db, segments[0], ...segments.slice(1)) as DocumentReference<T>;
 
-export const orgsRef = () =>
-  collection(db, paths.organizations) as CollectionReference<Organization>;
+export const userRef = (uid: string) => ref<UserProfile>('users', uid);
+export const orgRef = (orgId: string) => ref<Organization>('organizations', orgId);
+export const orgsRef = () => col<Organization>('organizations');
+export const membersRef = (orgId: string) => col<Member>(...org(orgId, 'members'));
+export const invitesRef = (orgId: string) => col<Invite>(...org(orgId, 'invites'));
+export const itemsRef = (orgId: string) => col<CatalogItem>(...org(orgId, 'items'));
+export const itemRef = (orgId: string, id: string) => ref<CatalogItem>(...org(orgId, 'items', id));
+export const stockMovementsRef = (orgId: string) => col<StockMovement>(...org(orgId, 'stockMovements'));
+export const customersRef = (orgId: string) => col<Customer>(...org(orgId, 'customers'));
+export const customerRef = (orgId: string, waId: string) => ref<Customer>(...org(orgId, 'customers', waId));
+export const messagesRef = (orgId: string, waId: string) => col<Message>(...org(orgId, 'customers', waId, 'messages'));
+export const ordersRef = (orgId: string) => col<Order>(...org(orgId, 'orders'));
+export const orderRef = (orgId: string, id: string) => ref<Order>(...org(orgId, 'orders', id));
+export const draftOrdersRef = (orgId: string) => col<DraftOrder>(...org(orgId, 'draftOrders'));
+export const paymentsRef = (orgId: string) => col<Payment>(...org(orgId, 'payments'));
 
-export const orgRef = (orgId: string) =>
-  doc(db, paths.organizations, orgId) as DocumentReference<Organization>;
+export const platformAdminRef = (uid: string) => ref<PlatformAdmin>('platformAdmins', uid);
+export const featureFlagsRef = () => col<FeatureFlag>('featureFlags');
+export const featureFlagRef = (flagId: string) => ref<FeatureFlag>('featureFlags', flagId);
+export const platformLogsRef = () => col<PlatformLog>('platformLogs');
 
-export const userRef = (uid: string) =>
-  doc(db, paths.users, uid) as DocumentReference<UserProfile>;
-
-/** Existence of this doc is the platform-admin grant — see firestore.rules' isPlatformAdmin(). */
-export const platformAdminRef = (uid: string) =>
-  doc(db, paths.platformAdmins, uid) as DocumentReference<PlatformAdmin>;
-
-export const featureFlagsRef = () =>
-  collection(db, paths.featureFlags) as CollectionReference<FeatureFlag>;
-
-export const featureFlagRef = (flagId: string) =>
-  doc(db, paths.featureFlags, flagId) as DocumentReference<FeatureFlag>;
-
-export const platformLogsRef = () =>
-  collection(db, paths.platformLogs) as CollectionReference<PlatformLog>;
-
-export const productsRef = (orgId: string) =>
-  collection(db, paths.organizations, orgId, paths.products) as CollectionReference<Product>;
-
-export const productRef = (orgId: string, productId: string) =>
-  doc(db, paths.organizations, orgId, paths.products, productId) as DocumentReference<Product>;
-
-export const customersRef = (orgId: string) =>
-  collection(db, paths.organizations, orgId, paths.customers) as CollectionReference<Customer>;
-
-export const customerRef = (orgId: string, customerId: string) =>
-  doc(db, paths.organizations, orgId, paths.customers, customerId) as DocumentReference<Customer>;
-
-/** One customer's full conversation, either direction — see the Inbox. */
-export const messagesRef = (orgId: string, customerId: string) =>
-  collection(
-    db,
-    paths.organizations,
-    orgId,
-    paths.customers,
-    customerId,
-    paths.messages,
-  ) as CollectionReference<Message>;
-
-export const broadcastsRef = (orgId: string) =>
-  collection(db, paths.organizations, orgId, paths.broadcasts) as CollectionReference<Broadcast>;
-
-export const ordersRef = (orgId: string) =>
-  collection(db, paths.organizations, orgId, paths.orders) as CollectionReference<Order>;
-
-export const orderRef = (orgId: string, orderId: string) =>
-  doc(db, paths.organizations, orgId, paths.orders, orderId) as DocumentReference<Order>;
-
-/**
- * Normalized copy of an order's own `items` array, written once by the bot.
- * The dashboard renders `order.items` directly — this exists for the case
- * that needs one item on its own (a per-product query, a future edit flow).
- */
-export const orderItemsRef = (orgId: string, orderId: string) =>
-  collection(
-    db,
-    paths.organizations,
-    orgId,
-    paths.orders,
-    orderId,
-    paths.orderItems,
-  ) as CollectionReference<OrderItem>;
-
-/** Storage path for a product photo, also tenant-scoped. */
-export const productImagePath = (orgId: string, productId: string, fileName: string) =>
-  `organizations/${orgId}/products/${productId}/${fileName}`;
+/** Storage path for an item photo, tenant-scoped like everything else. */
+export const itemImagePath = (orgId: string, itemId: string, fileName: string) => `organizations/${orgId}/items/${itemId}/${fileName}`;

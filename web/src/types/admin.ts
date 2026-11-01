@@ -1,5 +1,5 @@
 import type { Timestamp } from 'firebase/firestore';
-import type { PlanId } from './organization';
+import type { PlanId } from './model';
 
 /** Marks a Firebase Auth user as OrderFlow staff. Existence of the doc is the grant — see firestore.rules. */
 export interface PlatformAdmin {
